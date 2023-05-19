@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Chrome Plugin</title>
+    <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+    <img id="logo" src="images/solve-logo.svg" alt="Solve Finance" />
+
+    <button id="select-file-button">
+        <span>Process MISMO 2.4 File</span>
+    </button>
+
+    <div id="error">
+        An error occurred.
+    </div>
+
+    <script type="text/javascript" src="js/lib/xml-js.js"></script>
+    <script type="module" src="js/mismo/json/credit-score.mismo-json-processor.js"></script>
+    <script type="module" src="js/mismo/json/debt.mismo-json-helpers.js"></script>
+    <script type="module" src="js/mismo/json/debt.mismo-json-processor.js"></script>
+    <script type="module" src="js/mismo/xml/credit-score.mismo-xml-processor.js"></script>
+    <script type="module" src="js/mismo/xml/debt.mismo-xml-helpers.js"></script>
+    <script type="module" src="js/mismo/xml/debt.mismo-xml-processor.js"></script>
+    <script type="module" src="js/mismo/credit-score.mismo-validator.js"></script>
+    <script type="module" src="js/mismo/debt.mismo-constants.js"></script>
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/parser.service.js"></script>
+</body>
+</html>
