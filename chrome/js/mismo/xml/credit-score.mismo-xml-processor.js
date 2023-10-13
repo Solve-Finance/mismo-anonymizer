@@ -14,7 +14,7 @@ import { CREDIT_SUMMARY_ATTRIBUTES } from '../../constants.js';
  * @param report - Credit report as returned by the bureau provider
  * @param provider - Name of the bureau to filter by
  */
-export const getXmlCreditScores = (report, provider) => {
+export const getXmlCreditScores = (report, issueDate, provider) => {
   const scores = report.elements.filter(
     (element) => element.name === 'CREDIT_SCORE'
   );
@@ -24,7 +24,7 @@ export const getXmlCreditScores = (report, provider) => {
   let results = scores.reduce((result, reportScore) => {
     const processedScore = {
       value: parseInt(reportScore.attributes._Value),
-      date: reportScore.attributes._Date,
+      date: reportScore.attributes._Date || issueDate,
       provider: reportScore.attributes.CreditRepositorySourceType,
       factors: getCreditScoreFactors(reportScore),
     };

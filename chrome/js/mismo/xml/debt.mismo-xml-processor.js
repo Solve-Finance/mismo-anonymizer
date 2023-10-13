@@ -16,9 +16,10 @@ export const getXmlMismoDebts = (mismoReport) => {
   const xmlMismoDebts = mismoReport.elements.filter(
     (element) => element.name === 'CREDIT_LIABILITY'
   );
-  const mismoDebts = consolidateMismoDebts(xmlMismoDebts);
+  let mismoDebts = consolidateMismoDebts(xmlMismoDebts);
+  mismoDebts = mismoDebts.map(buildDebtBase);
 
-  return mismoDebts.map(buildDebtBase);
+  return mismoDebts.filter(debt => debt.group !== 'Unactionable');
 };
 
 const consolidateMismoDebts = (mismoDebts) => {
@@ -141,10 +142,11 @@ export const buildDebtBase = (mismoDebt) => {
   const calculatedRolledOverAmount =
     calculateRolledOverAmountForInstallments(mismoDebt);
 
-  const principalBalance = isCreditCardOrChargeAccount
+  let principalBalance = isCreditCardOrChargeAccount
     ? calculatedRolledOverAmount ??
     Number(mismoDebt.attributes._UnpaidBalanceAmount)
     : Number(mismoDebt.attributes._UnpaidBalanceAmount);
+  if (!principalBalance) principalBalance = 0;
 
   const scheduledMonthlyPayment =
     Number(mismoDebt.attributes._MonthlyPaymentAmount) || 0;
@@ -153,11 +155,7 @@ export const buildDebtBase = (mismoDebt) => {
     mismoDebt.attributes.CreditLoanType?.toLowerCase().replace(/\s/g, '');
   const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || 'Unactionable';
 
-  const initialBalance =
-    group === 'Personal'
-      ? mismoDebt.attributes._OriginalBalanceAmount ||
-      mismoDebt.attributes._HighCreditAmount
-      : mismoDebt.attributes._OriginalBalanceAmount;
+  const initialBalance = mismoDebt.attributes._OriginalBalanceAmount || mismoDebt.attributes._HighCreditAmount
 
   const bureauRemark = mismoDebt.elements.find((element) => {
     return (
@@ -172,23 +170,42 @@ export const buildDebtBase = (mismoDebt) => {
       ?.toLowerCase()
       ?.includes('deferred') || !!bureauRemark;
 
-  const creditor = mismoDebt.elements.find(
-    (element) => element.name === '_CREDITOR'
-  );
-  const lender = creditor ? creditor.attributes._Name : '';
-  const type = (mismoDebt.attributes.CreditLoanType ||
-    'Unactionable');
+  let isInCollection = false;
+  let isChargeoff = false;
 
-  const isInCollection = mismoDebt.attributes.IsCollectionIndicator === 'Y';
-  const isChargeoff = mismoDebt.attributes.IsChargeoffIndicator === 'Y';
+  if (mismoDebt.attributes.IsCollectionIndicator) {
+    isInCollection = mismoDebt.attributes.IsCollectionIndicator === 'Y';
+    isChargeoff = mismoDebt.attributes.IsChargeoffIndicator === 'Y';
+  } else {
+    const currentRating = mismoDebt.elements.find(element => element.name === '_CURRENT_RATING');
+
+    if (currentRating) {
+      isInCollection = currentRating.attributes._Type === 'Collection'
+        || currentRating.attributes._Type === 'CollectionOrChargeOff';
+      isChargeoff = currentRating.attributes._Type === 'ChargeOff'
+        || currentRating.attributes._Type === 'CollectionOrChargeOff';
+    }
+  }
+
   const isFederalLoan = isFederalDebt(mismoDebt);
   const isFHA = isFhaMortgage(mismoDebt);
-  const term = mismoDebt.attributes._TermsMonthsCount
-    ? Number(mismoDebt.attributes._TermsMonthsCount) ??
-    DEFAULT_TERM_FROM_DEBT_GROUP[group]
-    : DEFAULT_TERM_FROM_DEBT_GROUP[group];
-  const originationDate = mismoDebt.attributes._AccountOpenedDate;
-  const lastPaymentDate = mismoDebt.attributes.LastPaymentDate;
+
+  let term = mismoDebt.attributes._TermsMonthsCount;
+  if (!term) {
+    term = parseTermDescription(mismoDebt.attributes._TermsDescription);
+  }
+
+  if (!term) {
+    term = DEFAULT_TERM_FROM_DEBT_GROUP[group];
+  } else {
+    term = Number(term);
+  }
+
+  let originationDate = mismoDebt.attributes._AccountOpenedDate;
+  if (originationDate.length < 10) originationDate += '-01';
+
+  let lastPaymentDate = mismoDebt.attributes.LastPaymentDate || mismoDebt.attributes._LastActivityDate;
+  if (lastPaymentDate.length < 10) lastPaymentDate += '-01';
 
   const isFixed = Boolean(
     mismoDebt.elements.find((element) => {
@@ -201,8 +218,7 @@ export const buildDebtBase = (mismoDebt) => {
 
   return {
     group,
-    externalId,
-    lender,
+    ref: Math.random().toString(36).substring(2, 9),
     interestRateType: isFixed
       ? INTEREST_RATE_TYPE.FIXED_RATE
       : INTEREST_RATE_TYPE.VARIABLE_RATE,
@@ -217,8 +233,6 @@ export const buildDebtBase = (mismoDebt) => {
     isFederalLoan,
     isChargeoff,
     isInCollection,
-    isFHA,
-    type,
   };
 };
 
@@ -252,10 +266,23 @@ const isDebtActive = (debt) => {
     ''
   );
 
-  const isInCollection = debt.attributes.IsCollectionIndicator === 'Y';
-  const isOpen = debt.attributes.IsClosedIndicator === 'N';
-  const isChargeoff = debt.attributes.IsChargeoffIndicator === 'Y';
-  const isDebtActive = isInCollection || isOpen || isChargeoff;
+  // MISMO 2.4
+  if (debt.attributes.IsCollectionIndicator) {
+    const isInCollection = debt.attributes.IsCollectionIndicator === 'Y';
+    const isOpen = debt.attributes.IsClosedIndicator === 'N';
+    const isChargeoff = debt.attributes.IsChargeoffIndicator === 'Y';
+    const isDebtActive = isInCollection || isOpen || isChargeoff;
 
-  return isDebtActive && (creditLoanType || isInCollection);
+    return isDebtActive && (creditLoanType || isInCollection);
+  } else {
+    return debt.attributes._AccountStatusType === 'Open';
+  }
 };
+
+const parseTermDescription = (termDescription) => {
+  if (!termDescription) {
+    return null;
+  }
+
+  return termDescription.replace(/\D/g,'');
+}

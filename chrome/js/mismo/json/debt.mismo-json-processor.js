@@ -18,9 +18,10 @@ import {
 // Services
 
 export const getJsonMismoDebts = (mismoReport) => {
-  const mismoDebts = consolidateMismoDebts(mismoReport.CREDIT_LIABILITY);
+  let mismoDebts = consolidateMismoDebts(mismoReport.CREDIT_LIABILITY);
+  mismoDebts = mismoDebts.map(buildDebtBase);
 
-  return mismoDebts.map(buildDebtBase);
+  return mismoDebts.filter(debt => debt.group !== 'Unactionable');
 };
 
 const consolidateMismoDebts = (mismoDebts) => {
@@ -133,9 +134,10 @@ export const buildDebtBase = (mismoDebt) => {
   const calculatedRolledOverAmount =
     calculateRolledOverAmountForInstallments(trendedData);
 
-  const principalBalance = isCreditCardOrChargeAccount
+  let principalBalance = isCreditCardOrChargeAccount
     ? calculatedRolledOverAmount ?? Number(mismoDebt['@_UnpaidBalanceAmount'])
     : Number(mismoDebt['@_UnpaidBalanceAmount']);
+  if (!principalBalance) principalBalance = 0;
 
   const scheduledMonthlyPayment =
     Number(mismoDebt['@_MonthlyPaymentAmount']) || 0;
@@ -145,10 +147,7 @@ export const buildDebtBase = (mismoDebt) => {
     .replace(/\s/g, '');
   const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || 'Unactionable';
 
-  const initialBalance =
-    group === 'Personal'
-      ? mismoDebt['@_OriginalBalanceAmount'] || mismoDebt['@_HighCreditAmount']
-      : mismoDebt['@_OriginalBalanceAmount'];
+  const initialBalance = mismoDebt['@_OriginalBalanceAmount'] || mismoDebt['@_HighCreditAmount'];
 
   const bureauRemark = Array.isArray(mismoDebt['CREDIT_COMMENT'])
     ? mismoDebt['CREDIT_COMMENT']?.find(
@@ -164,19 +163,36 @@ export const buildDebtBase = (mismoDebt) => {
     mismoDebt['@_CollateralDescription']?.toLowerCase()?.includes('deferred') ||
     !!bureauRemark;
 
-  const lender = mismoDebt['_CREDITOR'] ? mismoDebt['_CREDITOR']['@_Name'] : '';
-  const type = (mismoDebt['@CreditLoanType'] || 'Unactionable');
+  let isInCollection = false;
+  let isChargeoff = false;
 
-  const isInCollection = mismoDebt['@IsCollectionIndicator'] === 'Y';
-  const isChargeoff = mismoDebt['@IsChargeoffIndicator'] === 'Y';
+  if (mismoDebt['@IsCollectionIndicator']) {
+    isInCollection = mismoDebt['@IsCollectionIndicator'] === 'Y';
+    isChargeoff = mismoDebt['@IsChargeoffIndicator'] === 'Y';
+  } else {
+    isInCollection = mismoDebt._CURRENT_RATING?.['@_Type'] === 'Collection'
+      || mismoDebt._CURRENT_RATING?.['@_Type'] === 'CollectionOrChargeOff';
+    isChargeoff = mismoDebt._CURRENT_RATING?.['@_Type'] === 'ChargeOff'
+      || mismoDebt._CURRENT_RATING?.['@_Type'] === 'CollectionOrChargeOff';
+  }
+
   const isFederalLoan = isFederalDebt(mismoDebt);
-  const isFHA = isFhaMortgage(mismoDebt);
-  const term = mismoDebt['@_TermsMonthsCount']
-    ? Number(mismoDebt['@_TermsMonthsCount']) ??
-    DEFAULT_TERM_FROM_DEBT_GROUP[group]
-    : DEFAULT_TERM_FROM_DEBT_GROUP[group];
-  const originationDate = mismoDebt['@_AccountOpenedDate'];
-  const lastPaymentDate = mismoDebt['@LastPaymentDate'];
+  let term = mismoDebt['@_TermsMonthsCount'];
+
+  if (!term) {
+    term = parseTermDescription(mismoDebt['@_TermsDescription'])
+  }
+
+  if (!term) {
+    term = DEFAULT_TERM_FROM_DEBT_GROUP[group];
+  }
+
+  let originationDate = mismoDebt['@_AccountOpenedDate'];
+  if (originationDate.length < 10) originationDate += '-01';
+
+  let lastPaymentDate = mismoDebt['@LastPaymentDate'] || mismoDebt['@_LastActivityDate'];
+  console.log(lastPaymentDate, mismoDebt);
+  if (lastPaymentDate.length < 10) lastPaymentDate += '-01';
 
   let isFixed = false;
   if (Array.isArray(mismoDebt.CREDIT_COMMENT)) {
@@ -189,15 +205,15 @@ export const buildDebtBase = (mismoDebt) => {
 
   return {
     group,
-    externalId,
-    lender,
+    // ref: externalId, // We were asked to disable this but it will not allow us to match up debts over time
+    ref: Math.random().toString(36).substring(2, 9),
     interestRateType: isFixed
       ? INTEREST_RATE_TYPE.FIXED_RATE
       : INTEREST_RATE_TYPE.VARIABLE_RATE,
+    scheduledMonthlyPayment,
     initialBalance: parseFloat(initialBalance) || 0,
     principalBalance,
     term: term || 0,
-    scheduledMonthlyPayment,
     paymentInterval: PaymentInterval.MONTHLY,
     originationDate,
     lastPaymentDate,
@@ -205,8 +221,6 @@ export const buildDebtBase = (mismoDebt) => {
     isFederalLoan,
     isChargeoff,
     isInCollection,
-    isFHA,
-    type,
   };
 };
 
@@ -246,3 +260,11 @@ const isDebtActive = (debt) => {
 
   return isDebtActive && (creditLoanType || isInCollection);
 };
+
+const parseTermDescription = (termDescription) => {
+  if (!termDescription) {
+    return null;
+  }
+
+  return termDescription.replace(/\D/g,'');
+}

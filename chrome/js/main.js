@@ -16,7 +16,13 @@ document.getElementById('select-file-button').addEventListener('click', function
 
       const downloadLink = document.createElement('a');
       downloadLink.href = url;
-      downloadLink.download = input.files[0].name.replace('.json', '').replace('.xml', '') + '.processed.json';
+
+      const date = new Date();
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+
+      downloadLink.download = `solve-debt-optimizer.${year}${month}${day}.json`;
       downloadLink.click();
 
       URL.revokeObjectURL(url);

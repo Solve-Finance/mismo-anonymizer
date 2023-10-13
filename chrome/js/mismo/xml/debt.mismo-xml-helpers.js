@@ -10,7 +10,7 @@ import { removeNonNumeric } from '../../utils.js';
 export const getMismoDebtIdentifier = (data) => {
   return data.attributes._AccountIdentifier
     ? data.attributes._AccountIdentifier
-    : data.attributes._OriginalBalanceAmount + data.attributes.CreditLoanType;
+    : (data.attributes._OriginalBalanceAmount || data.attributes._HighCreditAmount) + data.attributes.CreditLoanType;
 };
 
 export const isFhaMortgage = (data) => {

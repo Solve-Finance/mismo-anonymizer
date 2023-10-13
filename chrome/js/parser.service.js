@@ -20,7 +20,7 @@ export const parseSelectedFile = (file) => {
 
         result = {
           debts: getJsonMismoDebts(data.CREDIT_RESPONSE),
-          creditScores: getJsonCreditScores(data.CREDIT_RESPONSE),
+          creditScores: getJsonCreditScores(data.CREDIT_RESPONSE, data.CreditReportFirstIssuedDate),
           creditSummaryAttributes: getJsonCreditSummaryAttributes(data.CREDIT_RESPONSE)
         };
       } else if (file.name.endsWith('.xml')) {
@@ -34,7 +34,7 @@ export const parseSelectedFile = (file) => {
 
           result = {
             debts: getXmlMismoDebts(currElement),
-            creditScores: getXmlCreditScores(currElement),
+            creditScores: getXmlCreditScores(currElement, currElement.attributes.CreditReportFirstIssuedDate),
             creditSummaryAttributes: getXmlCreditSummaryAttributes(currElement)
           }
         } catch (err) {

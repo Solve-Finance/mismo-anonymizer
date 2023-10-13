@@ -13,7 +13,7 @@ import { CREDIT_SUMMARY_ATTRIBUTES } from '../../constants.js';
  * @param report - Credit report as returned by the bureau provider
  * @param provider - Name of the bureau to filter by
  */
-export const getJsonCreditScores = (report, provider) => {
+export const getJsonCreditScores = (report, issueDate, provider) => {
   let scores = report.CREDIT_SCORE;
 
   if (!scores) return [];
@@ -22,7 +22,7 @@ export const getJsonCreditScores = (report, provider) => {
   let results = scores.reduce((result, reportScore) => {
     const processedScore = {
       value: parseInt(reportScore['@_Value']),
-      date: reportScore['@_Date'],
+      date: reportScore['@_Date'] || issueDate,
       provider: reportScore['@CreditRepositorySourceType'],
       factors: getCreditScoreFactors(reportScore),
     };

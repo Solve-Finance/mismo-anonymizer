@@ -1,17 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Solve Finance - MISMO Anonymizer",
-  "version": "1.0",
+  "name": "Solve Finance - MISMO Extractor",
+  "version": "1.4",
   "action": {
     "default_popup": "index.html"
   },
   "icons": {
     "32": "images/icons/icon-32.png"
-  },
-  "permissions": [
-    "storage"
-  ],
-  "host_permissions": [
-    "https://api.example.com/"
-  ]
+  }
 }

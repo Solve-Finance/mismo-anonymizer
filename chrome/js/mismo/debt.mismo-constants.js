@@ -1,11 +1,11 @@
 export const DebtGroup = {
-  Auto: 'Auto',
-  CreditCard: 'CreditCard',
-  Mortgage: 'Mortgage',
-  Personal: 'Personal',
-  SecondMortgage: 'SecondMortgage',
-  Student: 'Student',
-  Unsecured: 'Unsecured',
+  Auto: 'AUTO',
+  CreditCard: 'CREDIT_CARD',
+  Mortgage: 'MORTGAGE',
+  Personal: 'PERSONAL',
+  SecondMortgage: 'SECOND_MORTGAGE',
+  Student: 'STUDENT',
+  Unsecured: 'UNSECURED',
 };
 
 export const DEFAULT_TERM_FROM_DEBT_GROUP = {
