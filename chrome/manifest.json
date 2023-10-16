@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Solve Finance - MISMO Extractor",
-  "version": "1.4",
+  "version": "1.5",
   "action": {
     "default_popup": "index.html"
   },

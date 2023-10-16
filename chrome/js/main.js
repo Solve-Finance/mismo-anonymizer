@@ -27,11 +27,26 @@ document.getElementById('select-file-button').addEventListener('click', function
 
       URL.revokeObjectURL(url);
     } catch (err) {
+      console.error(err);
+
       const errorElement = document.getElementById('error');
 
       errorElement.style.display = 'block';
+      errorElement.innerText = err.message;
     }
   });
 
   input.click();
 });
+
+window.onerror = function(msg, url, line, col, error) {
+  console.error(msg, url, line, col, error);
+
+  const errorElement = document.getElementById('error');
+
+  errorElement.style.display = 'block';
+  errorElement.innerHTML = `<div>
+    <p>${msg}</p>
+    ${url && `<p>${url.split('/js')[1]}:${line}:${col}</p>`}
+  </div>`;
+};

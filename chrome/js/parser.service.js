@@ -38,7 +38,7 @@ export const parseSelectedFile = (file) => {
             creditSummaryAttributes: getXmlCreditSummaryAttributes(currElement)
           }
         } catch (err) {
-          throw err;
+          return reject(err);
         }
       }
 
