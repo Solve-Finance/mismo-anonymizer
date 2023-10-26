@@ -28,14 +28,30 @@ export const parseSelectedFile = (file) => {
           const data = JSON.parse(xml2json(fileContent));
 
           let currElement = data.elements.find(element => element.name === 'RESPONSE_GROUP');
-          currElement = currElement.elements.find(element => element.name === 'RESPONSE');
-          currElement = currElement.elements.find(element => element.name === 'RESPONSE_DATA');
-          currElement = currElement.elements.find(element => element.name === 'CREDIT_RESPONSE');
+          if (currElement) {
+            currElement = currElement.elements.find(element => element.name === 'RESPONSE');
+            currElement = currElement.elements.find(element => element.name === 'RESPONSE_DATA');
+            currElement = currElement.elements.find(element => element.name === 'CREDIT_RESPONSE');
 
-          result = {
-            debts: getXmlMismoDebts(currElement),
-            creditScores: getXmlCreditScores(currElement, currElement.attributes.CreditReportFirstIssuedDate),
-            creditSummaryAttributes: getXmlCreditSummaryAttributes(currElement)
+            result = {
+              type: 'credit_report',
+              debts: getXmlMismoDebts(currElement),
+              creditScores: getXmlCreditScores(currElement, currElement.attributes.CreditReportFirstIssuedDate),
+              creditSummaryAttributes: getXmlCreditSummaryAttributes(currElement)
+            }
+          } else {
+            currElement = data.element.find(element => element.name === 'LIABILITIES');
+
+            if (currElement) {
+              result = {
+                type: 'credit_report_liabilities',
+                debts: getXmlMismoDebts(currElement),
+              };
+            } else {
+              result = {
+                type: 'unsupported'
+              };
+            }
           }
         } catch (err) {
           return reject(err);
