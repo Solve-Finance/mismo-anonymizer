@@ -40,7 +40,7 @@ export const parseSelectedFile = (file) => {
               creditSummaryAttributes: getXmlCreditSummaryAttributes(currElement)
             }
           } else {
-            currElement = data.element.find(element => element.name === 'LIABILITIES');
+            currElement = data.elements.find(element => element.name === 'LIABILITIES');
 
             if (currElement) {
               result = {
@@ -48,9 +48,7 @@ export const parseSelectedFile = (file) => {
                 debts: getXmlMismoDebts(currElement),
               };
             } else {
-              result = {
-                type: 'unsupported'
-              };
+              throw new Error('Unsupported file format');
             }
           }
         } catch (err) {
