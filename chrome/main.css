@@ -3,6 +3,11 @@
   src: url('./fonts/Majorant-Md.otf') format('opentype');
 }
 
+@font-face {
+  font-family: 'Majorant-Regular';
+  src: url('./fonts/Majorant-Rg.otf') format('opentype');
+}
+
 body {
   background: #fefefe;
   padding: 8px 8px 0;
@@ -21,6 +26,13 @@ body {
 
 #select-file-button {
   margin: 24px;
+}
+
+.helper {
+  text-align: center;
+  position: relative;
+  top: -16px;
+  font-family: "Majorant-Regular";
 }
 
 button {

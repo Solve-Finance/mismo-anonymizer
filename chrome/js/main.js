@@ -47,6 +47,6 @@ window.onerror = function(msg, url, line, col, error) {
   errorElement.style.display = 'block';
   errorElement.innerHTML = `<div>
     <p>${msg}</p>
-    ${url && `<p>${url.split('/js')[1]}:${line}:${col}</p>`}
+    ${url && `<p>${url}:${line}:${col}</p>`}
   </div>`;
 };
