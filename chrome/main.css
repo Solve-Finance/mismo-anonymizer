@@ -31,14 +31,20 @@ body {
 .helper {
   text-align: center;
   position: relative;
-  top: -16px;
   font-family: "Majorant-Regular";
+  margin-bottom: 24px;
+  font-weight: bold;
+}
+
+.small {
+  font-size: 12px;
+  font-weight: normal;
 }
 
 button {
   font-family: "Majorant-Medium";
   font-size: 1em;
-  width: 240px;
+  width: 300px;
   border-radius: 8px;
   min-height: 43px;
   border: 2px solid rgb(39, 174, 96);
