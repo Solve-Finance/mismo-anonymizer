@@ -3,7 +3,7 @@ import {
   DEBT_GROUP_MISMO_MAP,
   FEDERAL_STUDENT_LOAN_FLAGS,
   FHA_MORTGAGE_FLAGS,
-  DebtGroup
+  DEBT_GROUP
 } from '../debt.mismo-constants.js';
 import { removeNonNumeric } from '../../utils.js';
 
@@ -65,7 +65,7 @@ export const isFederalDebt = (debt) => {
   const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || 'Unactionable';
 
   return (
-    group === DebtGroup.Student &&
+    group === DEBT_GROUP.STUDENT &&
     FEDERAL_STUDENT_LOAN_FLAGS.some((name) =>
       lenderName?.toLowerCase()?.includes(name)
     )

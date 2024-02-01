@@ -1,6 +1,6 @@
 import {
   DEBT_GROUP_MISMO_MAP,
-  DebtGroup,
+  DEBT_GROUP,
   FEDERAL_STUDENT_LOAN_FLAGS,
   FHA_MORTGAGE_FLAGS,
 } from '../debt.mismo-constants.js';
@@ -60,12 +60,12 @@ export const calculateRolledOverAmountForInstallments = ({ CREDIT_COMMENT }) => 
 export const isFederalDebt = (debt) => {
   const lenderName = debt['_CREDITOR'] ? debt['_CREDITOR']['@_Name'] : '';
   const parsedCreditLoanType = debt['@CreditLoanType']
-    ?.toLowerCase()
+    ?.toUpperCase()
     .replace(/\s/g, '');
-  const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || 'Unactionable';
+  const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || DEBT_GROUP_MISMO_MAP.DEFAULT;
 
   return (
-    group === DebtGroup.Student &&
+    group === DEBT_GROUP.STUDENT &&
     FEDERAL_STUDENT_LOAN_FLAGS.some((name) =>
       lenderName?.toLowerCase()?.includes(name)
     )

@@ -1,12 +1,12 @@
 // Utils
 import {
-  CREDIT_LOAN_TYPE,
+  DEBT_GROUP,
   DEBT_GROUP_MISMO_MAP,
-  DEFAULT_TERM_FROM_DEBT_GROUP,
+  DEFAULT_TERM_FROM_LOAN_GROUP,
+  DEBT_TO_LOAN_GROUP
 } from '../debt.mismo-constants.js';
 import {
   calculateRolledOverAmountForInstallments,
-  getMismoDebtIdentifier,
   isFederalDebt,
   isFhaMortgage,
 } from './debt.mismo-xml-helpers.js';
@@ -30,13 +30,9 @@ const consolidateMismoDebts = (mismoDebts) => {
   externalIds.forEach((externalId) => {
     const currDebtSet = groupedDebts[externalId];
 
-    // First check, prioritize Equifax for tradeline information
-    const creditLoanType = currDebtSet[0].attributes
-      .CreditLoanType;
-    const isTradeline = [
-      CREDIT_LOAN_TYPE.CREDIT_CARD,
-      CREDIT_LOAN_TYPE.CHARGE_ACCOUNT,
-    ].includes(creditLoanType);
+    const parsedCreditLoanType = currDebtSet[0].attributes.CreditLoanType?.toUpperCase().replace(/[^0-9a-z]/gi, '');
+    const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || DEBT_GROUP_MISMO_MAP.DEFAULT;
+    const isTradeline = [DEBT_GROUP.CREDIT_CARD, DEBT_GROUP.LINE_OF_CREDIT].includes(group);
 
     const efxDebt = currDebtSet.find((debt) => {
       return debt.elements.find(
@@ -133,16 +129,15 @@ const groupMismoDebts = (mismoDebts) => {
 };
 
 export const buildDebtBase = (mismoDebt) => {
-  const externalId = getMismoDebtIdentifier(mismoDebt);
+  const parsedCreditLoanType = mismoDebt.attributes.CreditLoanType?.toUpperCase().replace(/[^0-9a-z]/gi, '');
+  const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || DEBT_GROUP_MISMO_MAP.DEFAULT;
 
-  const isCreditCardOrChargeAccount = ['ChargeAccount', 'CreditCard'].includes(
-    mismoDebt.attributes.CreditLoanType
-  );
+  const isRevolvingAccount = [DEBT_GROUP.CREDIT_CARD, DEBT_GROUP.LINE_OF_CREDIT].includes(group);
 
   const calculatedRolledOverAmount =
     calculateRolledOverAmountForInstallments(mismoDebt);
 
-  let principalBalance = isCreditCardOrChargeAccount
+  let principalBalance = isRevolvingAccount
     ? calculatedRolledOverAmount ??
     Number(mismoDebt.attributes._UnpaidBalanceAmount)
     : Number(mismoDebt.attributes._UnpaidBalanceAmount);
@@ -150,10 +145,6 @@ export const buildDebtBase = (mismoDebt) => {
 
   const scheduledMonthlyPayment =
     Number(mismoDebt.attributes._MonthlyPaymentAmount) || 0;
-
-  const parsedCreditLoanType =
-    mismoDebt.attributes.CreditLoanType?.toLowerCase().replace(/\s/g, '');
-  const group = DEBT_GROUP_MISMO_MAP[parsedCreditLoanType] || 'Unactionable';
 
   const initialBalance = mismoDebt.attributes._OriginalBalanceAmount || mismoDebt.attributes._HighCreditAmount
 
@@ -190,16 +181,8 @@ export const buildDebtBase = (mismoDebt) => {
   const isFederalLoan = isFederalDebt(mismoDebt);
   const isFHA = isFhaMortgage(mismoDebt);
 
-  let term = mismoDebt.attributes._TermsMonthsCount;
-  if (!term) {
-    term = parseTermDescription(mismoDebt.attributes._TermsDescription);
-  }
-
-  if (!term) {
-    term = DEFAULT_TERM_FROM_DEBT_GROUP[group];
-  } else {
-    term = Number(term);
-  }
+  const rawTerm = mismoDebt.attributes._TermsMonthsCount;
+  const term = rawTerm ? Number(rawTerm) : DEFAULT_TERM_FROM_LOAN_GROUP[DEBT_TO_LOAN_GROUP[group]] || 0;
 
   let originationDate = mismoDebt.attributes._AccountOpenedDate;
   if (originationDate.length < 10) originationDate += '-01';
@@ -218,6 +201,7 @@ export const buildDebtBase = (mismoDebt) => {
 
   return {
     group,
+    // ref: externalId, // We were asked to disable this but it will not allow us to match up debts over time
     ref: Math.random().toString(36).substring(2, 9),
     interestRateType: isFixed
       ? INTEREST_RATE_TYPE.FIXED_RATE
@@ -233,56 +217,75 @@ export const buildDebtBase = (mismoDebt) => {
     isFederalLoan,
     isChargeoff,
     isInCollection,
+    isFHA
   };
 };
 
 const isConfidentDebtAccountMatch = (a, b) => {
-  const hasMatchingLastActivity =
-    a.attributes._LastActivityDate === b.attributes._LastActivityDate;
-  const hasMatchingAccountOpenedDate =
-    a.attributes._AccountOpenedDate === b.attributes._AccountOpenedDate;
-  const hasMatchingCreditLoanType =
-    a.attributes.CreditLoanType === b.attributes.CreditLoanType;
-  const hasMatchingAccountStatus =
-    a.attributes._AccountStatusType === b.attributes._AccountStatusType;
-  const hasMatchingOriginalBalance =
-    a.attributes._OriginalBalanceAmount === b.attributes._OriginalBalanceAmount;
-  const hasMatchingHighCreditAmount =
-    a.attributes._HighCreditAmount === b.attributes._HighCreditAmount;
+  const aCreditLoanType = a.attributes.CreditLoanType?.toUpperCase().replace(/[^0-9a-z]/gi, '');
+  const aGroup = (aCreditLoanType && DEBT_GROUP_MISMO_MAP[aCreditLoanType]) || DEBT_GROUP_MISMO_MAP.DEFAULT;
+  const bCreditLoanType = b.attributes.CreditLoanType?.toUpperCase().replace(/[^0-9a-z]/gi, '');
+  const bGroup = (bCreditLoanType && DEBT_GROUP_MISMO_MAP[bCreditLoanType]) || DEBT_GROUP_MISMO_MAP.DEFAULT;
 
-  return (
-    hasMatchingLastActivity &&
-    hasMatchingAccountOpenedDate &&
-    hasMatchingCreditLoanType &&
-    hasMatchingAccountStatus &&
-    hasMatchingOriginalBalance &&
-    hasMatchingHighCreditAmount
-  );
+  const isRevolvingDebt = [DEBT_GROUP.CREDIT_CARD, DEBT_GROUP.LINE_OF_CREDIT].includes(aGroup);
+
+  const aMonthlyPaymentAmount = Number(a.attributes._MonthlyPaymentAmount);
+  const bMonthlyPaymentAmount = Number(b.attributes._MonthlyPaymentAmount);
+
+  const hasMonthlyPaymentAmount =
+    Object.hasOwnProperty.call(a.attributes, '_MonthlyPaymentAmount') &&
+    Object.hasOwnProperty.call(b.attributes, '_MonthlyPaymentAmount');
+  const isMonthlyMatching = isRevolvingDebt
+    ? (aMonthlyPaymentAmount > 0 && bMonthlyPaymentAmount > 0) ||
+      (aMonthlyPaymentAmount === 0 && bMonthlyPaymentAmount === 0)
+    : !hasMonthlyPaymentAmount || isWithin(aMonthlyPaymentAmount, bMonthlyPaymentAmount, 0.05);
+
+  const aUnpaidBalanceAmount = Number(a.attributes._UnpaidBalanceAmount);
+  const bUnpaidBalanceAmount = Number(b.attributes._UnpaidBalanceAmount);
+
+  const hasUnpaidBalanceAmount =
+    Object.hasOwnProperty.call(a.attributes, '_UnpaidBalanceAmount') &&
+    Object.hasOwnProperty.call(b.attributes, '_UnpaidBalanceAmount');
+  const isUnpaidBalanceMatching = isRevolvingDebt
+    ? (aUnpaidBalanceAmount > 0 && bUnpaidBalanceAmount > 0) ||
+      (aUnpaidBalanceAmount === 0 && bUnpaidBalanceAmount === 0)
+    : !hasUnpaidBalanceAmount || isWithin(aUnpaidBalanceAmount, bUnpaidBalanceAmount, 0.025);
+
+  const isMatch =
+    a.attributes._AccountOwnershipType === b.attributes._AccountOwnershipType &&
+    a.attributes._AccountStatusType === b.attributes._AccountStatusType &&
+    a.attributes._AccountOpenedDate === b.attributes._AccountOpenedDate &&
+    aGroup === bGroup &&
+    isMonthlyMatching &&
+    isUnpaidBalanceMatching;
+
+  return isMatch;
 };
 
 const isDebtActive = (debt) => {
-  const creditLoanType = debt.attributes.CreditLoanType?.toLowerCase().replace(
-    /\s/g,
-    ''
-  );
+  const creditLoanType = debt.attributes.CreditLoanType;
+  let isInCollection;
+  let isChargeoff;
 
   // MISMO 2.4
   if (debt.attributes.IsCollectionIndicator) {
-    const isInCollection = debt.attributes.IsCollectionIndicator === 'Y';
-    const isOpen = debt.attributes.IsClosedIndicator === 'N';
-    const isChargeoff = debt.attributes.IsChargeoffIndicator === 'Y';
-    const isDebtActive = isInCollection || isOpen || isChargeoff;
-
-    return isDebtActive && (creditLoanType || isInCollection);
+    isInCollection = debt.attributes.IsCollectionIndicator === 'Y';
+    isChargeoff = debt.attributes.IsChargeoffIndicator === 'Y';
   } else {
-    return debt.attributes._AccountStatusType === 'Open';
+    isInCollection = false;
+    isChargeoff = false;
+
+    const currentRating = debt.elements.find(element => element.name === '_CURRENT_RATING');
+
+    if (currentRating) {
+      isInCollection = currentRating.attributes._Type === 'Collection'
+        || currentRating.attributes._Type === 'CollectionOrChargeOff';
+      isChargeoff = currentRating.attributes._Type === 'ChargeOff'
+        || currentRating.attributes._Type === 'CollectionOrChargeOff';
+    }
   }
+  const isOpen = debt['@IsClosedIndicator'] === 'N';
+  const isDebtActive = isInCollection || isOpen || isChargeoff;
+
+  return isDebtActive && (creditLoanType || isInCollection);
 };
-
-const parseTermDescription = (termDescription) => {
-  if (!termDescription) {
-    return null;
-  }
-
-  return termDescription.replace(/\D/g,'');
-}
